@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+// MySQL API client - calls edge function that proxies to your MySQL server
 
 const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mysql-api`;
 
