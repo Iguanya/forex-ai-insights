@@ -2,3 +2,6 @@ project_id = "fettvdavqwwsrthqtyan"
 
 [functions.mysql-api]
 verify_jwt = false
+
+[functions.forex-rates]
+verify_jwt = false

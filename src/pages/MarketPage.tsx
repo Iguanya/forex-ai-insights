@@ -1,17 +1,49 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { mockPairs } from "@/data/mockData";
-import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { fetchLiveRates, LiveForexRate } from "@/lib/forexApi";
+import { ArrowUpRight, ArrowDownRight, Wifi, WifiOff } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
 export default function MarketPage() {
+  const { data: liveRates, isError, isLoading } = useQuery({
+    queryKey: ["forex-rates"],
+    queryFn: () => fetchLiveRates(),
+    refetchInterval: 60000, // Alpha Vantage free tier: ~5 calls/min
+    retry: 1,
+  });
+
+  const isLive = !!liveRates?.length;
+
+  // Merge live data with mock fallback
+  const pairs = mockPairs.map((mock) => {
+    const live = liveRates?.find((r: LiveForexRate) => r.symbol === mock.symbol);
+    if (live) {
+      return {
+        ...mock,
+        bid: live.bid,
+        ask: live.ask,
+        spread: parseFloat(live.spread.toFixed(1)),
+      };
+    }
+    return mock;
+  });
+
   return (
     <div className="space-y-4 animate-slide-up">
-      <div>
-        <h1 className="text-2xl font-bold font-display">Live Market</h1>
-        <p className="text-sm text-muted-foreground mt-1">Real-time forex pair pricing</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-display">Live Market</h1>
+          <p className="text-sm text-muted-foreground mt-1">Real-time forex pair pricing</p>
+        </div>
+        <Badge variant="outline" className={`font-mono text-[10px] gap-1 ${isLive ? "border-profit text-profit" : "border-muted-foreground text-muted-foreground"}`}>
+          {isLive ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+          {isLoading ? "CONNECTING..." : isLive ? "LIVE" : "MOCK DATA"}
+        </Badge>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {mockPairs.map(pair => {
+        {pairs.map(pair => {
           const isUp = pair.changePercent >= 0;
           return (
             <Card key={pair.symbol} className="gradient-card border-border/50 hover:border-primary/30 transition-colors">
