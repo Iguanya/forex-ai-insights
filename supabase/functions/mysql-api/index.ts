@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/mysql2@3.11.0/promise";
+import mysql from "npm:mysql2@3.11.0/promise";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,7 +18,7 @@ async function getConnection() {
     throw new Error("MySQL credentials not configured. Check MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE secrets.");
   }
 
-  const connection = await createClient({
+  const connection = await mysql.createConnection({
     host,
     user,
     password,
