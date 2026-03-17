@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
+
+  const getRoleBadgeVariant = () => {
+    switch (role) {
+      case "admin":
+        return "default";
+      case "trader":
+        return "secondary";
+      default:
+        return "outline";
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -19,13 +30,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <span className="text-xs text-muted-foreground font-mono hidden md:block">
                 {user?.email}
               </span>
+              <Badge variant={getRoleBadgeVariant()} className="font-mono text-[10px] uppercase">
+                {role}
+              </Badge>
               <div className="relative">
                 <Bell className="h-4 w-4 text-muted-foreground" />
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive animate-pulse-glow" />
               </div>
-              <Badge variant="outline" className="font-mono text-[10px] border-primary/30 text-primary">
-                LIVE
-              </Badge>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={signOut}>
                 <LogOut className="h-4 w-4" />
               </Button>

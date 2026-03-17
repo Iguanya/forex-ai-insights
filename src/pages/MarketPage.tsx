@@ -1,15 +1,34 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { mockPairs } from "@/data/mockData";
-import { fetchLiveRates, LiveForexRate } from "@/lib/forexApi";
-import { ArrowUpRight, ArrowDownRight, Wifi, WifiOff } from "lucide-react";
+import { fetchLiveRates, LiveForexRate, ForexRatesResponse } from "@/lib/forexApi";
+import { ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useState } from "react";
 
 export default function MarketPage() {
+  const [dataSource, setDataSource] = useState<string[]>([]);
+  
   const { data: liveRates, isError, isLoading } = useQuery({
     queryKey: ["forex-rates"],
-    queryFn: () => fetchLiveRates(),
-    refetchInterval: 60000, // Alpha Vantage free tier: ~5 calls/min
+    queryFn: async () => {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/forex-rates`,
+        {
+          headers: {
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      
+      if (!response.ok) throw new Error("Failed to fetch rates");
+      
+      const data: ForexRatesResponse = await response.json();
+      setDataSource(data.sources || []);
+      return data.data;
+    },
+    refetchInterval: 60000, // Adjust based on your API provider
     retry: 1,
   });
 
@@ -36,10 +55,27 @@ export default function MarketPage() {
           <h1 className="text-2xl font-bold font-display">Live Market</h1>
           <p className="text-sm text-muted-foreground mt-1">Real-time forex pair pricing</p>
         </div>
-        <Badge variant="outline" className={`font-mono text-[10px] gap-1 ${isLive ? "border-profit text-profit" : "border-muted-foreground text-muted-foreground"}`}>
-          {isLive ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-          {isLoading ? "CONNECTING..." : isLive ? "LIVE" : "MOCK DATA"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs font-mono">
+                  {isLive && dataSource.length > 0 
+                    ? `Using: ${dataSource.join(", ")}`
+                    : "Configure API keys for live data"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          <Badge variant="outline" className={`font-mono text-[10px] gap-1 ${isLive ? "border-profit text-profit" : "border-muted-foreground text-muted-foreground"}`}>
+            {isLive ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            {isLoading ? "CONNECTING..." : isLive ? "LIVE" : "MOCK DATA"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
