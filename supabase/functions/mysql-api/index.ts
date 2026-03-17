@@ -18,7 +18,7 @@ async function getConnection() {
     throw new Error("MySQL credentials not configured. Check MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE secrets.");
   }
 
-  const connection = await mysql.createConnection({
+  const connection = await createConnection({
     host,
     user,
     password,
