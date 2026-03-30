@@ -1104,6 +1104,6 @@ app.get("/api/debug/info", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`✅ Backend server running on http://localhost:${port}`);
-  console.log(`📡 CORS enabled for localhost and 192.168.100.2`);
+  console.log(`✅ Backend server running on http://144.172.112.31:${port}`);
+  console.log(`📡 CORS enabled `);
 });
