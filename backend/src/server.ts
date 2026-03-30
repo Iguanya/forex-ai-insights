@@ -18,9 +18,12 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-min-32-characters"
 console.log("[SERVER] Express app initialized, port:", port);
 
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:8081", "http://localhost:8082", "http://192.168.100.2:5173", "http://192.168.100.2:8081", "http://192.168.100.2:8082", "http://144.172.112.31:8080"],
-  credentials: true,
+  origin: (origin, callback) => {
+    callback(null, true); // allow all origins
+  },
+  credentials: true
 }));
+
 app.use(express.json());
 
 // Request logging middleware
