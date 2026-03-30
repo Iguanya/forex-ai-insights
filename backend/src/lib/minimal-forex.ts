@@ -1,3 +1,4 @@
+// Minimal test to verify exports work
 export interface LiveForexRate {
   symbol: string;
   bid: number;
@@ -9,13 +10,7 @@ export interface LiveForexRate {
   source?: string;
 }
 
-export interface ForexRatesResponse {
-  data: LiveForexRate[];
-  timestamp: string;
-  sources?: string[];
-}
-
-// Mock data for demo purposes (with realistic market conditions)
+// Mock data for fallback
 const MOCK_RATES: Record<string, { base: number; spread: number; volatility: number }> = {
   "EUR/USD": { base: 1.08549, spread: 0.00014, volatility: 0.0008 },
   "GBP/USD": { base: 1.26350, spread: 0.00018, volatility: 0.0009 },
@@ -25,60 +20,13 @@ const MOCK_RATES: Record<string, { base: number; spread: number; volatility: num
   "USD/CAD": { base: 1.36280, spread: 0.00022, volatility: 0.0007 },
 };
 
-// Generate realistic price movements
 function generateRealisticPrice(symbol: string, baseData: { base: number; spread: number; volatility: number }): { bid: number; ask: number } {
-  // Add random walk for realistic price movement
   const randomWalk = (Math.random() - 0.5) * baseData.volatility;
   const bid = baseData.base + randomWalk;
   const ask = bid + baseData.spread;
   return { bid, ask };
 }
 
-/**
- * Fetches live forex rates from multiple free real data sources
- * 
- * Primary: exchangerate.host (completely free, no auth)
- * Secondary: Alpha Vantage (free tier with API key)
- * Fallback: Market Simulator for testing
- * 
- * @param pairs - Optional array of forex pairs (e.g., ["EUR/USD", "GBP/USD"])
- * @returns Array of live forex rates with source information
- */
-export async function fetchLiveRates(pairs?: string[]): Promise<LiveForexRate[]> {
-  const pairList = pairs?.length ? pairs : Object.keys(MOCK_RATES);
-
-  // Try exchangerate.host first (completely free, no auth needed)
-  try {
-    const rates = await fetchFromExchangeRateHost(pairList);
-    if (rates.length > 0) {
-      console.log("✓ Using real forex data from exchangerate.host");
-      return rates;
-    }
-  } catch (error) {
-    console.log("exchangerate.host unavailable, trying Alpha Vantage...");
-  }
-
-  // Try Alpha Vantage (free tier with API key)
-  try {
-    const alphaKey = typeof process !== 'undefined' ? process.env.ALPHAVANTAGE_API_KEY : import.meta.env.VITE_ALPHA_VANTAGE_API_KEY;
-    if (alphaKey) {
-      const rates = await fetchFromAlphaVantage(pairList, alphaKey);
-      if (rates.length > 0) {
-        console.log("✓ Using real forex data from Alpha Vantage");
-        return rates;
-      }
-    }
-  } catch (error) {
-    console.log("Alpha Vantage unavailable, using market simulator...");
-  }
-
-  // Fallback to market simulator
-  return generateMarketSimulatorData(pairList);
-}
-
-/**
- * Fetches from exchangerate.host (free, no authentication)
- */
 async function fetchFromExchangeRateHost(pairs: string[]): Promise<LiveForexRate[]> {
   const rates: LiveForexRate[] = [];
 
@@ -94,8 +42,8 @@ async function fetchFromExchangeRateHost(pairs: string[]): Promise<LiveForexRate
 
       const data = await response.json();
       if (data.rates && data.rates[to]) {
-        const bid = data.rates[to] * 0.9999; // Approximate bid (slightly lower)
-        const ask = data.rates[to] * 1.0001; // Approximate ask (slightly higher)
+        const bid = data.rates[to] * 0.9999;
+        const ask = data.rates[to] * 1.0001;
         const spread = ask - bid;
 
         rates.push({
@@ -106,20 +54,16 @@ async function fetchFromExchangeRateHost(pairs: string[]): Promise<LiveForexRate
           exchangeRate: data.rates[to],
           lastRefreshed: new Date().toISOString(),
           source: "exchangerate.host (Real)",
-        });
+        } as LiveForexRate);
       }
     } catch (error) {
-      // Continue to next pair
+      // Silent fail, try next pair
     }
   }
 
   return rates;
 }
 
-/**
- * Fetches from Alpha Vantage (free tier requires API key)
- * Get free key at: https://www.alphavantage.co/
- */
 async function fetchFromAlphaVantage(pairs: string[], apiKey: string): Promise<LiveForexRate[]> {
   const rates: LiveForexRate[] = [];
 
@@ -134,10 +78,11 @@ async function fetchFromAlphaVantage(pairs: string[], apiKey: string): Promise<L
       if (!response.ok) continue;
 
       const data = await response.json();
-      if (data["Realtime Currency Exchange Rate"]) {
-        const rate = data["Realtime Currency Exchange Rate"];
-        const bid = parseFloat(rate["8. Bid Price"]);
-        const ask = parseFloat(rate["9. Ask Price"]);
+      const rate = data["Realtime Currency Exchange Rate"];
+
+      if (rate) {
+        const bid = parseFloat(rate["5. Exchange Rate"]) * 0.9999;
+        const ask = parseFloat(rate["5. Exchange Rate"]) * 1.0001;
 
         rates.push({
           symbol: pair,
@@ -157,9 +102,6 @@ async function fetchFromAlphaVantage(pairs: string[], apiKey: string): Promise<L
   return rates;
 }
 
-/**
- * Generates simulated market data for fallback
- */
 function generateMarketSimulatorData(pairs: string[]): LiveForexRate[] {
   const rates: LiveForexRate[] = pairs
     .filter((pair) => MOCK_RATES[pair])
@@ -178,17 +120,46 @@ function generateMarketSimulatorData(pairs: string[]): LiveForexRate[] {
       } as LiveForexRate;
     });
 
-  console.log("⚠ Using market simulator (for testing only)");
   return rates;
 }
 
-/**
- * Gets information about available data sources
- */
+export async function fetchLiveRates(pairs?: string[]): Promise<LiveForexRate[]> {
+  const pairList = pairs?.length ? pairs : Object.keys(MOCK_RATES);
+
+  // Try exchangerate.host first (completely free, no auth needed)
+  try {
+    const rates = await fetchFromExchangeRateHost(pairList);
+    if (rates.length > 0) {
+      console.log("✓ Backend using real forex data from exchangerate.host");
+      return rates;
+    }
+  } catch (error) {
+    console.log("exchangerate.host unavailable, trying Alpha Vantage...");
+  }
+
+  // Try Alpha Vantage (free tier with API key)
+  try {
+    const alphaKey = process.env.ALPHA_VANTAGE_API_KEY;
+    if (alphaKey) {
+      const rates = await fetchFromAlphaVantage(pairList, alphaKey);
+      if (rates.length > 0) {
+        console.log("✓ Backend using real forex data from Alpha Vantage");
+        return rates;
+      }
+    }
+  } catch (error) {
+    console.log("Alpha Vantage unavailable, using market simulator...");
+  }
+
+  // Fallback to market simulator
+  console.log("⚠ Using market simulator for realistic testing");
+  return generateMarketSimulatorData(pairList);
+}
+
 export async function getDataSourceInfo(): Promise<string[]> {
   return [
-    "exchangerate.host (Free, Real-time)",
-    "Alpha Vantage (Free tier)",
-    "Market Simulator (Fallback)",
+    "exchangerate.host (Real, Free)",
+    "Alpha Vantage (Real, Free tier)",
+    "Market Simulator (Testing)",
   ];
 }

@@ -7,20 +7,47 @@ import { v4 as uuidv4 } from "uuid";
 import "dotenv/config";
 import { BotTradeService } from "./services/BotTradeService";
 import { BotSessionsManager } from "./services/BackendTradingBot";
+import { backendLogger } from "./logger";
+
+console.log("[SERVER] Loading backend server module...");
 
 const app = express();
 const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-min-32-characters";
 
+console.log("[SERVER] Express app initialized, port:", port);
+
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:8081", "http://localhost:8082", "http://192.168.100.2:5173", "http://192.168.100.2:8081", "http://192.168.100.2:8082"],
+  origin: ["http://localhost:5173", "http://localhost:8081", "http://localhost:8082", "http://192.168.100.2:5173", "http://192.168.100.2:8081", "http://192.168.100.2:8082", "http://144.172.112.31:8080"],
   credentials: true,
 }));
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const requestId = uuidv4().substring(0, 8);
+  const startTime = Date.now();
+
+  // Log incoming request
+  backendLogger.logRequest(req.method, req.path, req.ip || "unknown", requestId);
+
+  // Store request ID on response for later use
+  (res as any).requestId = requestId;
+
+  // Override res.end to log response
+  const originalEnd = res.end as any;
+  res.end = function (...args: any[]) {
+    const duration = Date.now() - startTime;
+    backendLogger.logResponse(req.method, req.path, res.statusCode, duration, requestId);
+    return originalEnd.apply(res, args);
+  } as any;
+
+  next();
+});
+
 // MySQL Connection Pool
 const pool = createPool({
-  host: process.env.MYSQL_HOST || "144.172.93.6",
+  host: process.env.MYSQL_HOST || "144.172.112.31",
   user: process.env.MYSQL_USER || "root",
   password: process.env.MYSQL_PASSWORD || "",
   database: process.env.MYSQL_DATABASE || "trading",
@@ -43,22 +70,40 @@ interface AuthResponse {
 
 // Auth Endpoints
 app.post("/api/auth/signup", async (req, res) => {
+  const requestId = (res as any).requestId;
+  const { email, password, role } = req.body;
+
+  backendLogger.logAuthEvent("SIGNUP_ATTEMPT", email, { role }, requestId);
+
   try {
-    const { email, password, role } = req.body;
+    if (!email || !password) {
+      backendLogger.warn(
+        "AUTH",
+        "Signup validation failed - missing email or password",
+        { email: email ? "provided" : "missing", password: password ? "provided" : "missing" },
+        requestId
+      );
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
     const userId = uuidv4();
     const password_hash = await bcrypt.hash(password, 10);
+
+    backendLogger.debug("AUTH", "Password hashed successfully", {} , requestId);
 
     const connection = await pool.getConnection();
     await connection.beginTransaction();
 
     try {
       // Create user
+      backendLogger.debug("AUTH", "Creating user record", { email }, requestId);
       await connection.execute(
         "INSERT INTO users (id, email, password_hash, role) VALUES (?, ?, ?, ?)",
         [userId, email, password_hash, role || "trader"]
       );
 
       // Create user profile
+      backendLogger.debug("AUTH", "Creating user profile", { userId }, requestId);
       await connection.execute(
         "INSERT INTO user_profiles (id, display_name) VALUES (?, ?)",
         [userId, email.split("@")[0]]
@@ -66,6 +111,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
       // Create trader profile if trader
       if (role === "trader") {
+        backendLogger.debug("AUTH", "Creating trader profile", { userId }, requestId);
         await connection.execute(
           "INSERT INTO traders_profiles (id, account_balance) VALUES (?, ?)",
           [userId, 0]
@@ -73,10 +119,12 @@ app.post("/api/auth/signup", async (req, res) => {
       }
 
       await connection.commit();
+      backendLogger.debug("AUTH", "Database transaction committed", { userId }, requestId);
 
       const token = jwt.sign({ id: userId, email, role }, JWT_SECRET, { expiresIn: "7d" });
       const response: AuthResponse = { token, user: { id: userId, email, role } };
 
+      backendLogger.logAuthEvent("SIGNUP_SUCCESS", email, { userId }, requestId);
       res.json(response);
     } catch (err) {
       await connection.rollback();
@@ -85,52 +133,109 @@ app.post("/api/auth/signup", async (req, res) => {
       connection.release();
     }
   } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    backendLogger.logAuthEvent(
+      "SIGNUP_FAILED",
+      email,
+      { error: error.message },
+      requestId
+    );
+    backendLogger.error(
+      "AUTH",
+      "Signup error",
+      error,
+      { email },
+      requestId
+    );
+    res.status(400).json({ error: error.message || "Signup failed" });
   }
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const connection = await pool.getConnection();
+  const requestId = (res as any).requestId;
+  const { email, password } = req.body;
 
+  backendLogger.logAuthEvent("LOGIN_ATTEMPT", email, {}, requestId);
+
+  try {
+    if (!email || !password) {
+      backendLogger.warn(
+        "AUTH",
+        "Login validation failed - missing email or password",
+        { email: email ? "provided" : "missing", password: password ? "provided" : "missing" },
+        requestId
+      );
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    backendLogger.debug("AUTH", "Looking up user by email", { email }, requestId);
+
+    const connection = await pool.getConnection();
     const [rows]: any = await connection.execute(
       "SELECT * FROM users WHERE email = ?",
       [email]
     );
-
     connection.release();
 
     if (!rows.length) {
+      backendLogger.warn(
+        "AUTH",
+        "Login failed - user not found",
+        { email },
+        requestId
+      );
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = rows[0];
+    backendLogger.debug("AUTH", "User found, validating password", { email }, requestId);
+
     const isValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isValid) {
+      backendLogger.warn(
+        "AUTH",
+        "Login failed - invalid password",
+        { email },
+        requestId
+      );
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "7d" });
     const response: AuthResponse = { token, user: { id: user.id, email: user.email, role: user.role } };
 
+    backendLogger.logAuthEvent("LOGIN_SUCCESS", email, { userId: user.id }, requestId);
     res.json(response);
   } catch (error: any) {
-    res.status(400).json({ error: error.message });
+    backendLogger.logAuthEvent("LOGIN_FAILED", email, { error: error.message }, requestId);
+    backendLogger.error("AUTH", "Login error", error, { email }, requestId);
+    res.status(400).json({ error: error.message || "Login failed" });
   }
 });
 
 app.get("/api/auth/verify", async (req, res) => {
+  const requestId = (res as any).requestId;
+
   try {
     const token = req.headers.authorization?.split(" ")[1];
+
     if (!token) {
+      backendLogger.warn("AUTH", "Verify failed - no token provided", {}, requestId);
       return res.status(401).json({ valid: false });
     }
 
+    backendLogger.debug("AUTH", "Verifying JWT token", {}, requestId);
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    backendLogger.logAuthEvent("TOKEN_VERIFIED", (decoded as any).email, {}, requestId);
     res.json({ valid: true, user: decoded });
-  } catch (error) {
+  } catch (error: any) {
+    backendLogger.warn(
+      "AUTH",
+      "Token verification failed",
+      { error: error.message },
+      requestId
+    );
     res.status(401).json({ valid: false });
   }
 });
@@ -905,6 +1010,94 @@ app.get("/api/bot/balance", async (req, res) => {
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
+});
+
+// Debug endpoints - retrieve server logs for troubleshooting
+app.get("/api/debug/logs", (req, res) => {
+  const requestId = (res as any).requestId;
+  
+  try {
+    backendLogger.debug("DEBUG", "Retrieving recent logs", {}, requestId);
+    const minutes = parseInt(req.query.minutes as string) || 30;
+    const category = req.query.category as string;
+    const level = req.query.level as string;
+
+    let logs = backendLogger.getRecentLogs(minutes);
+
+    if (category) {
+      logs = logs.filter(
+        (l) => l.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+
+    if (level) {
+      logs = logs.filter((l) => l.level === level.toUpperCase());
+    }
+
+    res.json({
+      count: logs.length,
+      timeRangeMinutes: minutes,
+      filters: { category: category || "all", level: level || "all" },
+      logs,
+    });
+  } catch (error: any) {
+    backendLogger.error("DEBUG", "Error retrieving logs", error, {}, requestId);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Debug endpoint - get logs by category
+app.get("/api/debug/logs/auth", (req, res) => {
+  const requestId = (res as any).requestId;
+  
+  try {
+    const authLogs = backendLogger.getLogsByCategory("AUTH");
+    res.json({
+      count: authLogs.length,
+      category: "AUTH",
+      logs: authLogs.slice(-50), // Last 50 auth logs
+    });
+  } catch (error: any) {
+    backendLogger.error("DEBUG", "Error retrieving auth logs", error, {}, requestId);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Debug endpoint - get error logs
+app.get("/api/debug/logs/errors", (req, res) => {
+  const requestId = (res as any).requestId;
+  
+  try {
+    const errorLogs = backendLogger.getLogsByLevel("ERROR" as any);
+    res.json({
+      count: errorLogs.length,
+      level: "ERROR",
+      logs: errorLogs.slice(-50), // Last 50 error logs
+    });
+  } catch (error: any) {
+    backendLogger.error("DEBUG", "Error retrieving error logs", error, {}, requestId);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Debug endpoint - get server info
+app.get("/api/debug/info", (req, res) => {
+  const requestId = (res as any).requestId;
+  
+  try {
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      logFilePath: backendLogger.getLogFilePath(),
+      totalLogs: backendLogger.getLogs().length,
+      node_version: process.version,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+    });
+  } catch (error: any) {
+    backendLogger.error("DEBUG", "Error retrieving server info", error, {}, requestId);
+    res.status(400).json({ error: error.message });
+  }
 });
 
 app.listen(port, () => {

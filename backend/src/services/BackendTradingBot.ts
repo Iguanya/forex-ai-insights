@@ -1,6 +1,7 @@
 import { Pool } from "mysql2/promise";
 import { v4 as uuidv4 } from "uuid";
-import { LiveForexRate, fetchLiveRates } from "../lib/forexApi";
+import type { LiveForexRate } from "../lib/minimal-forex";
+import { fetchLiveRates } from "../lib/minimal-forex";
 import { BotTradeService } from "./BotTradeService";
 
 export interface BotSignal {

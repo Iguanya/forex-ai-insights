@@ -84,7 +84,7 @@ export default function AuthPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="trader">Trader</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    {/* <SelectItem value="admin">Admin</SelectItem> */}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
