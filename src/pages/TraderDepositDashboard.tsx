@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Upload, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Loader2, Upload, AlertCircle, CheckCircle, Clock, QrCode } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -41,6 +42,7 @@ interface Deposit {
   amount: number;
   currency: "USDT" | "USDC" | "BNB" | "ETH";
   status: "pending" | "confirmed" | "failed" | "cancelled";
+  wallet_address?: string;
   transaction_hash?: string;
   notes?: string;
   created_at: string;
@@ -48,12 +50,14 @@ interface Deposit {
 
 export default function TraderDepositDashboard() {
   const { traderProfile, user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDepositDialog, setShowDepositDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [lastDeposit, setLastDeposit] = useState<Deposit | null>(null);
 
   // Form state
   const [amount, setAmount] = useState("");
@@ -131,17 +135,29 @@ export default function TraderDepositDashboard() {
 
       toast({
         title: "Success",
-        description: `Deposit of ${amount} ${currency} submitted. Reference: ${deposit.reference_number}`,
+        description: `Deposit of ${amount} ${currency} created. Reference: ${deposit.reference_number}`,
       });
 
-      // Reset form
-      setAmount("");
-      setCurrency("USDT");
-      setNotes("");
-      setShowDepositDialog(false);
+      // Store deposit details to show wallet address
+      setLastDeposit({
+        id: deposit.id,
+        trader_id: user?.id || '',
+        reference_number: deposit.reference_number,
+        amount: parseFloat(amount),
+        currency,
+        status: 'pending',
+        wallet_address: deposit.wallet_address,
+        notes,
+        created_at: new Date().toISOString()
+      });
 
-      // Refresh deposits
-      fetchDeposits();
+      // Keep dialog open to show wallet address
+      setTimeout(() => {
+        // Reset form but keep dialog open to show wallet instructions
+        setAmount("");
+        setCurrency("USDT");
+        setNotes("");
+      }, 500);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -245,14 +261,25 @@ export default function TraderDepositDashboard() {
       </Card>
 
       {/* New Deposit Button */}
-      <Button
-        size="lg"
-        onClick={() => setShowDepositDialog(true)}
-        className="w-full md:w-auto"
-      >
-        <Upload className="mr-2 h-4 w-4" />
-        Submit New Deposit
-      </Button>
+      <div className="flex flex-col md:flex-row gap-3">
+        <Button
+          size="lg"
+          onClick={() => navigate("/trader/deposit")}
+          className="flex-1 md:flex-auto"
+        >
+          <QrCode className="mr-2 h-4 w-4" />
+          Quick Deposit (QR Code)
+        </Button>
+        <Button
+          size="lg"
+          onClick={() => setShowDepositDialog(true)}
+          variant="outline"
+          className="flex-1 md:flex-auto"
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          Manual Deposit (Legacy)
+        </Button>
+      </div>
 
       {/* Deposits History */}
       <Card className="gradient-card border-border/50">
@@ -299,76 +326,139 @@ export default function TraderDepositDashboard() {
       </Card>
 
       {/* Deposit Dialog */}
-      <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
+      <Dialog open={showDepositDialog} onOpenChange={(open) => {
+        setShowDepositDialog(open);
+        if (!open) {
+          setLastDeposit(null);
+          setAmount("");
+          setCurrency("USDT");
+          setNotes("");
+          fetchDeposits();
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Submit Deposit</DialogTitle>
-            <DialogDescription>Send funds to your trading account</DialogDescription>
+            <DialogTitle>{lastDeposit ? "Deposit Payment Instructions" : "Submit Deposit"}</DialogTitle>
+            <DialogDescription>
+              {lastDeposit ? "Send funds to your trading account" : "Enter deposit details"}
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmitDeposit} className="space-y-4">
-            {/* Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (USD)</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                required
-              />
-            </div>
+          {lastDeposit ? (
+            // Show wallet address instructions
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-3">
+                <p className="text-sm font-semibold text-blue-900">Deposit Details</p>
+                
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600">Reference Number:</p>
+                  <div className="bg-white p-2 rounded border border-gray-300 flex items-center justify-between">
+                    <code className="text-xs font-mono">{lastDeposit.reference_number}</code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(lastDeposit.reference_number)}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
 
-            {/* Currency */}
-            <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Select value={currency} onValueChange={(val) => setCurrency(val as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USDT">USDT</SelectItem>
-                  <SelectItem value="USDC">USDC</SelectItem>
-                  <SelectItem value="BNB">BNB</SelectItem>
-                  <SelectItem value="ETH">ETH</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600">Wallet Address:</p>
+                  <div className="bg-white p-2 rounded border border-gray-300 flex items-center justify-between">
+                    <code className="text-xs font-mono break-all">{lastDeposit.wallet_address || 'Loading...'}</code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(lastDeposit.wallet_address || '')}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Additional Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional information about this deposit..."
-                rows={3}
-              />
-            </div>
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded">
+                  <p className="text-xs text-amber-900">
+                    <strong>Send exactly {lastDeposit.amount} {lastDeposit.currency}</strong> to the address above. Include the reference number in the memo if possible.
+                  </p>
+                </div>
+              </div>
 
-            <DialogFooter>
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setShowDepositDialog(false)}
+                className="w-full"
               >
-                Cancel
+                Close
               </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  "Submit Deposit"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
+            </div>
+          ) : (
+            // Show form
+            <form onSubmit={handleSubmitDeposit} className="space-y-4">
+              {/* Amount */}
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount (USD)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              {/* Currency */}
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select value={currency} onValueChange={(val) => setCurrency(val as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USDT">USDT</SelectItem>
+                    <SelectItem value="USDC">USDC</SelectItem>
+                    <SelectItem value="BNB">BNB</SelectItem>
+                    <SelectItem value="ETH">ETH</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label htmlFor="notes">Additional Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any additional information about this deposit..."
+                  rows={3}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowDepositDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Deposit"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

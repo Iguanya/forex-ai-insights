@@ -1,33 +1,22 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { mockPairs } from "@/data/mockData";
-import { fetchLiveRates, LiveForexRate, ForexRatesResponse } from "@/lib/forexApi";
+import { fetchLiveRates, LiveForexRate, getDataSourceInfo } from "@/lib/forexApi";
 import { ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Info } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function MarketPage() {
   const [dataSource, setDataSource] = useState<string[]>([]);
   
+  useEffect(() => {
+    getDataSourceInfo().then(setDataSource);
+  }, []);
+  
   const { data: liveRates, isError, isLoading } = useQuery({
     queryKey: ["forex-rates"],
-    queryFn: async () => {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/forex-rates`,
-        {
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }
-      );
-      
-      if (!response.ok) throw new Error("Failed to fetch rates");
-      
-      const data: ForexRatesResponse = await response.json();
-      setDataSource(data.sources || []);
-      return data.data;
-    },
+    queryFn: fetchLiveRates,
     refetchInterval: 60000, // Adjust based on your API provider
     retry: 1,
   });

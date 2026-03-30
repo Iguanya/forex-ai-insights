@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Check, X, Eye } from "lucide-react";
+import { Loader2, Check, X, Eye, Copy } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
@@ -25,6 +26,7 @@ interface Deposit {
   amount: number;
   currency: "USDT" | "USDC" | "BNB" | "ETH";
   status: "pending" | "confirmed" | "failed" | "cancelled";
+  wallet_address?: string;
   transaction_hash?: string;
   notes?: string;
   created_at: string;
@@ -40,6 +42,7 @@ export default function AdminDepositsPage() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [transactionHash, setTransactionHash] = useState("");
 
   useEffect(() => {
     if (user?.role === "admin") {
@@ -85,11 +88,14 @@ export default function AdminDepositsPage() {
       setActionLoading(selectedDeposit.id);
 
       const response = await fetch(
-        `${API_BASE_URL}/deposits/${selectedDeposit.id}/confirm`,
+        `${API_BASE_URL}/admin/deposits/${selectedDeposit.id}/verify`,
         {
           method: "POST",
           headers: getHeaders(),
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            action: "confirm",
+            transaction_hash: transactionHash || undefined,
+          }),
         }
       );
 
@@ -105,6 +111,7 @@ export default function AdminDepositsPage() {
 
       setShowDetailDialog(false);
       setSelectedDeposit(null);
+      setTransactionHash("");
       fetchDeposits();
     } catch (error: any) {
       toast({
@@ -124,12 +131,13 @@ export default function AdminDepositsPage() {
       setActionLoading(selectedDeposit.id);
 
       const response = await fetch(
-        `${API_BASE_URL}/deposits/${selectedDeposit.id}/reject`,
+        `${API_BASE_URL}/admin/deposits/${selectedDeposit.id}/verify`,
         {
           method: "POST",
           headers: getHeaders(),
           body: JSON.stringify({
-            reason: rejectionReason || undefined,
+            action: "reject",
+            transaction_hash: transactionHash || undefined,
           }),
         }
       );
@@ -147,6 +155,7 @@ export default function AdminDepositsPage() {
       setShowDetailDialog(false);
       setSelectedDeposit(null);
       setRejectionReason("");
+      setTransactionHash("");
       fetchDeposits();
     } catch (error: any) {
       toast({
@@ -290,7 +299,14 @@ export default function AdminDepositsPage() {
       </Card>
 
       {/* Detail Dialog */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+      <Dialog open={showDetailDialog} onOpenChange={(open) => {
+        setShowDetailDialog(open);
+        if (!open) {
+          setSelectedDeposit(null);
+          setRejectionReason("");
+          setTransactionHash("");
+        }
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Deposit Details</DialogTitle>
@@ -315,10 +331,35 @@ export default function AdminDepositsPage() {
                 </div>
               </div>
 
+              {/* Wallet Address */}
+              {selectedDeposit.wallet_address && (
+                <div className="bg-blue-50 border border-blue-200 p-3 rounded">
+                  <p className="text-xs font-semibold text-blue-900 uppercase mb-2">Wallet Address</p>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs font-mono break-all text-blue-800 flex-1">
+                      {selectedDeposit.wallet_address}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(selectedDeposit.wallet_address || '')}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Trader Info */}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase">Trader ID</p>
                 <p className="text-sm font-mono mt-1">{selectedDeposit.trader_id}</p>
+              </div>
+
+              {/* Reference Number */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase">Reference</p>
+                <p className="text-sm font-mono mt-1">{selectedDeposit.reference_number}</p>
               </div>
 
               {/* Date */}
@@ -337,17 +378,30 @@ export default function AdminDepositsPage() {
                 </div>
               )}
 
-              {/* Rejection Reason Input - only show if validating/rejecting */}
+              {/* Verification Form - only show if pending */}
               {selectedDeposit.status === "pending" && (
-                <div className="space-y-2">
-                  <Label htmlFor="reason">Rejection Reason (if applicable)</Label>
-                  <Textarea
-                    id="reason"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder="Explain why this deposit is being rejected..."
-                    rows={3}
-                  />
+                <div className="space-y-3 pt-3 border-t border-border/30">
+                  <div>
+                    <Label htmlFor="txhash">Transaction Hash (optional)</Label>
+                    <Input
+                      id="txhash"
+                      value={transactionHash}
+                      onChange={(e) => setTransactionHash(e.target.value)}
+                      placeholder="Enter blockchain transaction hash..."
+                      className="mt-1 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="reason">Rejection Reason (if applicable)</Label>
+                    <Textarea
+                      id="reason"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Explain why this deposit is being rejected..."
+                      rows={2}
+                    />
+                  </div>
                 </div>
               )}
 

@@ -7,6 +7,7 @@ import {
   BarChart3,
   CandlestickChart,
   DollarSign,
+  Zap,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -24,25 +25,27 @@ import {
 } from "@/components/ui/sidebar";
 
 const adminMainItems = [
-  { title: "Overview", url: "/", icon: LayoutDashboard },
-  { title: "Users", url: "/users", icon: Users },
-  { title: "Market", url: "/market", icon: CandlestickChart },
+  { title: "Overview", path: "/admin", icon: LayoutDashboard },
+  { title: "Users", path: "/admin/users", icon: Users },
+  { title: "Market", path: "/admin/market", icon: CandlestickChart },
 ];
 
 const adminAIItems = [
-  { title: "AI Signals", url: "/signals", icon: TrendingUp },
-  { title: "Trading Bots", url: "/bots", icon: Bot },
-  { title: "Risk Alerts", url: "/alerts", icon: AlertTriangle },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "AI Signals", path: "/admin/signals", icon: TrendingUp },
+  { title: "Trading Bots", path: "/admin/bots", icon: Bot },
+  { title: "Bot", path: "/admin/bot", icon: Zap },
+  { title: "Risk Alerts", path: "/admin/alerts", icon: AlertTriangle },
+  { title: "Analytics", path: "/admin/analytics", icon: BarChart3 },
 ];
 
 const adminManagementItems = [
-  { title: "Manage Deposits", url: "/deposits", icon: DollarSign },
+  { title: "Manage Deposits", path: "/admin/deposits", icon: DollarSign },
 ];
 
 const traderItems = [
-  { title: "Deposit Funds", url: "/", icon: DollarSign },
-  { title: "Market", url: "/market", icon: CandlestickChart },
+  { title: "Deposit Funds", path: "/trader", icon: DollarSign },
+  { title: "Market", path: "/trader/market", icon: CandlestickChart },
+  { title: "Bot", path: "/trader/bot", icon: Zap },
 ];
 
 export function AppSidebar() {
@@ -56,8 +59,8 @@ export function AppSidebar() {
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton asChild>
           <NavLink
-            to={item.url}
-            end={item.url === "/"}
+            to={item.path}
+            end={item.path === "/admin" || item.path === "/trader"}
             className="hover:bg-sidebar-accent/50 transition-colors"
             activeClassName="bg-sidebar-accent text-primary font-medium"
           >

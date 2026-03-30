@@ -15,7 +15,9 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 import TraderDepositDashboard from "./pages/TraderDepositDashboard";
+import { TraderDepositPage } from "./pages/TraderDepositPage";
 import AdminDepositsPage from "./pages/AdminDepositsPage";
+import BotPageBackend from "./pages/BotPage-Backend";
 import { Loader2, Lock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -98,69 +100,26 @@ function TraderRoute({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-function AdminRoutes() {
+function AdminLayout({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
-
-  if (!session) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return (
-    <DashboardLayout>
-      <Routes>
-        <Route path="/" element={<OverviewPage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/market" element={<MarketPage />} />
-        <Route path="/signals" element={<SignalsPage />} />
-        <Route path="/bots" element={<BotsPage />} />
-        <Route path="/alerts" element={<AlertsPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route
-          path="/deposits"
-          element={
-            <AdminRoute>
-              <AdminDepositsPage />
-            </AdminRoute>
-          }
-        />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </DashboardLayout>
-  );
+  if (!session) return <Navigate to="/auth" replace />;
+  
+  return <DashboardLayout>{children}</DashboardLayout>;
 }
 
-function TraderRoutes() {
+function TraderLayout({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
-
-  if (!session) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return (
-    <DashboardLayout>
-      <Routes>
-        <Route path="/" element={<TraderDepositDashboard />} />
-        <Route path="/market" element={<MarketPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </DashboardLayout>
-  );
+  if (!session) return <Navigate to="/auth" replace />;
+  
+  return <DashboardLayout>{children}</DashboardLayout>;
 }
 
 function ProtectedRoutes() {
@@ -178,11 +137,11 @@ function ProtectedRoutes() {
     return <Navigate to="/auth" replace />;
   }
 
-  // Route based on user role
+  // Redirect based on user role
   if (role === "admin") {
-    return <AdminRoutes />;
+    return <Navigate to="/admin" replace />;
   } else if (role === "trader") {
-    return <TraderRoutes />;
+    return <Navigate to="/trader" replace />;
   }
 
   return <Navigate to="/auth" replace />;
@@ -197,7 +156,29 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthGuard />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminLayout><OverviewPage /></AdminLayout>} />
+            <Route path="/admin/users" element={<AdminLayout><UsersPage /></AdminLayout>} />
+            <Route path="/admin/market" element={<AdminLayout><MarketPage /></AdminLayout>} />
+            <Route path="/admin/signals" element={<AdminLayout><SignalsPage /></AdminLayout>} />
+            <Route path="/admin/bots" element={<AdminLayout><BotsPage /></AdminLayout>} />
+            <Route path="/admin/alerts" element={<AdminLayout><AlertsPage /></AdminLayout>} />
+            <Route path="/admin/analytics" element={<AdminLayout><AnalyticsPage /></AdminLayout>} />
+            <Route path="/admin/deposits" element={<AdminLayout><AdminRoute><AdminDepositsPage /></AdminRoute></AdminLayout>} />
+            <Route path="/admin/bot" element={<AdminLayout><BotPageBackend /></AdminLayout>} />
+            
+            {/* Trader Routes */}
+            <Route path="/trader" element={<TraderLayout><TraderDepositDashboard /></TraderLayout>} />
+            <Route path="/trader/market" element={<TraderLayout><MarketPage /></TraderLayout>} />
+            <Route path="/trader/deposit" element={<TraderLayout><TraderDepositPage /></TraderLayout>} />
+            <Route path="/trader/bot" element={<TraderLayout><BotPageBackend /></TraderLayout>} />
+            
+            {/* Root redirect */}
+            <Route path="/" element={<ProtectedRoutes />} />
+            
+            {/* Fallback */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
