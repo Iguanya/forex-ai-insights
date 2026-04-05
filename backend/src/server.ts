@@ -14,14 +14,25 @@ console.log("[SERVER] Loading backend server module...");
 const app = express();
 const port = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-min-32-characters";
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 console.log("[SERVER] Express app initialized, port:", port);
+console.log("[SERVER] Environment:", NODE_ENV);
+
+// CORS Configuration
+// In development, allow all origins for easier testing
+// In production, specify allowed origins in ALLOWED_ORIGINS env variable
+const allowedOrigins = NODE_ENV === "development" 
+  ? undefined // Allow all origins in development
+  : (process.env.ALLOWED_ORIGINS || "http://localhost:8080").split(",");
 
 app.use(cors({
-  origin: (origin, callback) => {
-    callback(null, true); // allow all origins
-  },
-  credentials: true
+  origin: NODE_ENV === "development" 
+    ? true // Allow all origins in development
+    : allowedOrigins,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
 app.use(express.json());
@@ -1104,6 +1115,6 @@ app.get("/api/debug/info", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`✅ Backend server running on http://144.172.112.31:${port}`);
+  console.log(`✅ Backend server running on http://localhost:${port}`);
   console.log(`📡 CORS enabled `);
 });
