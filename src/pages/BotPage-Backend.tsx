@@ -6,6 +6,7 @@ import { AlertTriangle, Play, Pause, RotateCw, Settings, TrendingUp, TrendingDow
 import { fetchLiveRates } from "@/lib/forexApi";
 import { TradingBot, BotTrade, BotSignal, BotMetrics } from "@/services/TradingBot";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://144.172.112.31:3000/api";
 const AVAILABLE_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CHF", "USD/CAD"];
 const TRADE_INTERVALS = [
   { value: 5000, label: "5 seconds" },
@@ -64,7 +65,7 @@ export default function BotPage() {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const res = await fetch("http://localhost:3000/api/bot/balance", {
+        const res = await fetch(`${API_BASE_URL}/bot/balance`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

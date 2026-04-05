@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { logger } from "../lib/logger";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://144.172.112.31:3000/api";
 
 // Log configuration on load
 logger.info("AUTH_CONFIG", "API_BASE_URL configured", {

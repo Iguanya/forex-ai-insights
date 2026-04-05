@@ -7,6 +7,8 @@ import { Alert } from './ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useAuth } from '../hooks/useAuth';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://144.172.112.31:3000/api';
+
 type DepositStep = 'amount' | 'qrcode' | 'verification';
 
 interface DepositState {
@@ -45,7 +47,7 @@ export function DepositFlow() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:3000/api/deposits/step1/create', {
+      const response = await fetch(`${API_BASE_URL}/deposits/step1/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -89,7 +91,7 @@ export function DepositFlow() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:3000/api/deposits/${deposit.depositId}/step2/qrcode`, {
+      const response = await fetch(`${API_BASE_URL}/deposits/${deposit.depositId}/step2/qrcode`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -127,7 +129,7 @@ export function DepositFlow() {
     try {
       const token = localStorage.getItem('auth_token');
       const response = await fetch(
-        `http://localhost:3000/api/deposits/${deposit.depositId}/step3/status`,
+        `${API_BASE_URL}/deposits/${deposit.depositId}/step3/status`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -163,7 +165,7 @@ export function DepositFlow() {
       try {
         const token = localStorage.getItem('auth_token');
         const response = await fetch(
-          `http://localhost:3000/api/deposits/${deposit.depositId}/step3/status`,
+          `${API_BASE_URL}/deposits/${deposit.depositId}/step3/status`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
