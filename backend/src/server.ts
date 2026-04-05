@@ -24,7 +24,7 @@ console.log("[SERVER] Environment:", NODE_ENV);
 // In production, specify allowed origins in ALLOWED_ORIGINS env variable
 const allowedOrigins = NODE_ENV === "development" 
   ? undefined // Allow all origins in development
-  : (process.env.ALLOWED_ORIGINS || "http://localhost:8080").split(",");
+  : (process.env.ALLOWED_ORIGINS || "http://144.172.112.31:8080,http://localhost:8080").split(",");
 
 app.use(cors({
   origin: NODE_ENV === "development" 
@@ -1114,7 +1114,8 @@ app.get("/api/debug/info", (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`✅ Backend server running on http://localhost:${port}`);
-  console.log(`📡 CORS enabled `);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`✅ Backend server running on http://0.0.0.0:${port}`);
+  console.log(`📡 Listening for connections from any interface`);
+  console.log(`📡 CORS enabled for ${NODE_ENV} environment`);
 });

@@ -14,9 +14,10 @@ export default defineConfig(({ mode }) => ({
     proxy: {
       // Proxy API requests to backend server
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://144.172.112.31:3000",
         changeOrigin: true,
         secure: false,
+        rewrite: (path) => path,
       },
     },
   },
