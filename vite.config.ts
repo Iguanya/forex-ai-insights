@@ -11,6 +11,12 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    allowedHosts: [
+      "fx.iguanyalabs.com",
+      "144.172.112.31",
+      "localhost",
+      "127.0.0.1",
+    ],
     proxy: {
       // Proxy API requests to backend server
       "/api": {

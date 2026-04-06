@@ -4,12 +4,22 @@ import { createPool } from "mysql2/promise";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
-import "dotenv/config";
+import path from "path";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 import { BotTradeService } from "./services/BotTradeService";
 import { BotSessionsManager } from "./services/BackendTradingBot";
 import { backendLogger } from "./logger";
 
+// Define __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from root .env file
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 console.log("[SERVER] Loading backend server module...");
+console.log("[SERVER] Environment file loaded from:", path.resolve(__dirname, "../../.env"));
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -24,7 +34,7 @@ console.log("[SERVER] Environment:", NODE_ENV);
 // In production, specify allowed origins in ALLOWED_ORIGINS env variable
 const allowedOrigins = NODE_ENV === "development" 
   ? undefined // Allow all origins in development
-  : (process.env.ALLOWED_ORIGINS || "http://144.172.112.31:8080,http://localhost:8080").split(",");
+  : (process.env.ALLOWED_ORIGINS || "http://fx.iguanyalabs.com:8080,http://144.172.112.31:8080,http://localhost:8080").split(",");
 
 app.use(cors({
   origin: NODE_ENV === "development" 
@@ -59,11 +69,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Log environment variables before pool creation
+console.log("[ENV DEBUG] MYSQL_HOST:", process.env.MYSQL_HOST);
+console.log("[ENV DEBUG] MYSQL_USER:", process.env.MYSQL_USER);
+console.log("[ENV DEBUG] MYSQL_PASSWORD:", process.env.MYSQL_PASSWORD ? "***SET***" : "NOT SET");
+console.log("[ENV DEBUG] MYSQL_DATABASE:", process.env.MYSQL_DATABASE);
+console.log("[ENV DEBUG] MYSQL_PORT:", process.env.MYSQL_PORT);
+
 // MySQL Connection Pool
-const pool = createPool({
+const dbConfig = {
   host: process.env.MYSQL_HOST || "144.172.112.31",
   user: process.env.MYSQL_USER || "root",
-  password: process.env.MYSQL_PASSWORD || "",
+  password: process.env.MYSQL_PASSWORD || "root_root",
   database: process.env.MYSQL_DATABASE || "trading",
   port: parseInt(process.env.MYSQL_PORT || "3306"),
   waitForConnections: true,
@@ -71,7 +88,17 @@ const pool = createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   ssl: false,
-});
+};
+
+console.log("[DATABASE] Connection pool will use:");
+console.log(`  Host: ${dbConfig.host}`);
+console.log(`  User: ${dbConfig.user}`);
+console.log(`  Password: ${dbConfig.password ? "***SET***" : "EMPTY!"}`);
+console.log(`  Database: ${dbConfig.database}`);
+console.log(`  Port: ${dbConfig.port}`);
+
+const pool = createPool(dbConfig);
+console.log(`  Port: ${process.env.MYSQL_PORT || "3306"}`);
 
 // Initialize bot services
 const botTradeService = new BotTradeService(pool);
